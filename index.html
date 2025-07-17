@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>新橋・銀座・有楽町 飲み会おすすめ店舗セレクター</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Warm Neutrals & Cool Accents (bg-slate-50, text-slate-700, primary: sky-600, secondary: amber-500) -->
+    <!-- Application Structure Plan: The application is designed as an interactive dashboard. The primary goal is to allow the user to easily filter and sort the provided list of 30 restaurants to find the perfect venue for their event. The structure consists of: 1) A control panel with filters for area, genre, and sorting options. 2) A dynamic radar chart to visually compare the top-rated restaurants based on the current filters. 3) A dynamic grid of restaurant cards that updates based on user selections. This dashboard approach was chosen over a static list because it empowers the user to explore the data according to their specific priorities (e.g., "most stylish" vs. "best value"), making the decision-making process faster and more intuitive. -->
+    <!-- Visualization & Content Choices: 
+        - Restaurant List -> Interactive Card Grid (HTML/CSS/JS): A card grid is more visually engaging and mobile-friendly than a traditional table. Each card acts as a mini-summary, providing key information at a glance.
+        - Restaurant Comparison -> Radar Chart (Chart.js/Canvas): A radar chart is the optimal choice for comparing multiple entities (restaurants) across multiple quantitative dimensions (the 5 evaluation criteria). It immediately visualizes the strengths and weaknesses of each option, facilitating quick comparisons.
+        - Filtering/Sorting -> Interactive Buttons & Dropdowns (HTML/JS): Standard UI elements are used for filtering and sorting to ensure an intuitive user experience. Interactions trigger dynamic updates to both the card grid and the radar chart, providing immediate feedback.
+    -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: 'Inter', 'Noto Sans JP', sans-serif;
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 500px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 300px;
+            max-height: 40vh;
+        }
+        @media (min-width: 768px) {
+            .chart-container {
+                height: 350px;
+            }
+        }
+        .tag {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800">
+
+    <div class="container mx-auto p-4 md:p-8">
+        <header class="text-center mb-8">
+            <h1 class="text-3xl md:text-4xl font-bold text-slate-900">飲み会のお店選び支援アプリ</h1>
+            <p class="mt-2 text-slate-600">2025年7月19日(金) 新橋・銀座・有楽町エリア</p>
+        </header>
+
+        <div class="bg-white p-4 rounded-xl shadow-md mb-8">
+            <h2 class="text-xl font-bold mb-4 text-slate-800">絞り込み &amp; 並べ替え</h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                    <label for="area-filter" class="block text-sm font-medium text-slate-700 mb-1">エリア</label>
+                    <select id="area-filter" class="w-full p-2 border border-slate-300 rounded-md shadow-sm focus:ring-sky-500 focus:border-sky-500">
+                        <option value="all">すべて</option>
+                        <option value="新橋">新橋</option>
+                        <option value="銀座">銀座</option>
+                        <option value="有楽町">有楽町</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="genre-filter" class="block text-sm font-medium text-slate-700 mb-1">ジャンル</label>
+                    <select id="genre-filter" class="w-full p-2 border border-slate-300 rounded-md shadow-sm focus:ring-sky-500 focus:border-sky-500">
+                         <option value="all">すべて</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="sort-by" class="block text-sm font-medium text-slate-700 mb-1">並べ替え</label>
+                    <select id="sort-by" class="w-full p-2 border border-slate-300 rounded-md shadow-sm focus:ring-sky-500 focus:border-sky-500">
+                        <option value="total">合計点</option>
+                        <option value="cuisine">料理がおいしい</option>
+                        <option value="style">おしゃれ</option>
+                        <option value="calmness">落ち着き</option>
+                        <option value="cospa">コスパ</option>
+                        <option value="review">口コミ評価</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+        
+        <div class="bg-white p-4 md:p-6 rounded-xl shadow-md mb-8">
+            <h2 class="text-xl font-bold mb-4 text-center text-slate-800">トップ候補の比較チャート</h2>
+            <p class="text-center text-sm text-slate-600 mb-4">現在の絞り込み条件で上位の店舗をレーダーチャートで比較します。</p>
+            <div class="chart-container">
+                <canvas id="restaurant-radar-chart"></canvas>
+            </div>
+        </div>
+
+        <div id="restaurant-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        </div>
+    </div>
+
+    <script>
+        const restaurantData = [
+            { rank: 1, name: 'レストラン マルタ 新橋店', desc: 'マルタ共和国の料理をベースにした新感覚イタリアン。おしゃれで女性に人気。', genre: 'イタリアン、マルタ料理', cuisine: 8, style: 9, calmness: 7, cospa: 8, review: 7, total: 39, booking: '◯', url: 'https://tabelog.com/tokyo/A1301/A130103/13200631/', area: '新橋' },
+            { rank: 2, name: '海鮮炭火原始焼き 日本酒 のど黒炭魚 新橋駅前店', desc: '新鮮な海の幸を原始焼きで。のどぐろが自慢。日本酒豊富。個室あり。', genre: '魚介料理、原始焼き、日本酒', cuisine: 9, style: 7, calmness: 7, cospa: 7, review: 8, total: 38, booking: '◯', url: 'https://tabelog.com/tokyo/A1301/A130103/13303425/', area: '新橋' },
+            { rank: 3, name: '魚と日本酒&炭火焼鳥 新橋商店 総本店', desc: '新鮮魚介、日本酒、炭火焼鳥が楽しめる。個室ありで落ち着いて食事も可能。', genre: '魚介料理、焼鳥、日本酒', cuisine: 8, style: 7, calmness: 7, cospa: 7, review: 8, total: 37, booking: '◯', url: 'https://tabelog.com/tokyo/A1301/A130103/13283341/', area: '新橋' },
+            { rank: 4, name: 'MAIMON GINZA', desc: 'モダンな空間でシーフードやオイスター料理。おしゃれで洗練された雰囲気。個室充実。', genre: 'ダイニングバー、オイスターバー、イタリアン', cuisine: 8, style: 9, calmness: 7, cospa: 6, review: 7, total: 37, booking: '◯', url: 'https://tabelog.com/tokyo/A1301/A130101/13016561/', area: '銀座' },
+            { rank: 5, name: '酒蔵 魚の家 新橋店', desc: '築地直送の新鮮魚介が自慢の和食店。清潔感あるカジュアルな雰囲気。個室完備。', genre: '海鮮和食、居酒屋', cuisine: 7, style: 7, calmness: 7, cospa: 8, review: 7, total: 36, booking: '◯', url: 'https://tabelog.com/tokyo/A1301/A130103/13185807/', area: '新橋' },
+            { rank: 6, name: '銀座 炉端 しん', desc: '厳選された旬の食材を炉端焼きで。落ち着いた雰囲気で大人の飲み会に最適。個室あり。', genre: '炉端焼き、和食', cuisine: 8, style: 7, calmness: 8, cospa: 6, review: 7, total: 36, booking: '◯', url: 'https://tabelog.com/tokyo/A1301/A130101/13188941/', area: '銀座' },
+            { rank: 7, name: 'THE GRILL & BAR 銀座', desc: 'モダンな空間でグリル料理とワインを。おしゃれな雰囲気で女性にも人気。個室あり。', genre: 'グリル料理、ダイニングバー', cuisine: 7, style: 8, calmness: 7, cospa: 7, review: 7, total: 36, booking: '◯', url: 'https://tabelog.com/tokyo/A1301/A130101/13192084/', area: '銀座' },
+            { rank: 8, name: '有楽町ワイン倶楽部', desc: '季節のビストロ料理と厳選ワインをカジュアルに楽しめる。おしゃれなワインバル。', genre: 'ビストロ、イタリアン、ワインバー', cuisine: 7, style: 8, calmness: 7, cospa: 7, review: 7, total: 36, booking: '◯', url: 'https://tabelog.com/tokyo/A1301/A130102/13168005/', area: '有楽町' },
+            { rank: 9, name: '京都石塀小路豆ちゃ 有楽町', desc: '京都のおばんざいや京料理が楽しめる。和の趣ある空間で、落ち着いた大人の飲み会に。', genre: '日本料理、ダイニングバー', cuisine: 8, style: 7, calmness: 8, cospa: 6, review: 7, total: 36, booking: '◯', url: 'https://tabelog.com/tokyo/A1301/A130102/13002148/', area: '有楽町' },
+            { rank: 10, name: 'KICHIRI 銀座', desc: '創作和食ダイニング。モダンでおしゃれな空間、豊富な個室が魅力。飲み放題付きコースも充実。', genre: '居酒屋、ダイニングバー、創作和食', cuisine: 7, style: 8, calmness: 7, cospa: 7, review: 7, total: 36, booking: '◯', url: 'https://tabelog.com/tokyo/A1301/A130101/13004077/', area: '銀座' },
+            { rank: 11, name: '炭火焼き・鮮魚料理 よりみち', desc: '炭火串焼きと旬の鮮魚料理が自慢の隠れ家。落ち着いた雰囲気でゆっくり過ごせる。', genre: '炭火焼き、鮮魚料理、居酒屋', cuisine: 7, style: 7, calmness: 7, cospa: 7, review: 7, total: 35, booking: '◯', url: 'https://tabelog.com/tokyo/A1301/A130103/13213328/', area: '新橋' },
+            { rank: 12, name: 'LOBO\'S 日比谷店', desc: 'シャンデリアが輝く空間でスペイン料理。飲み放題付きコースも充実。おしゃれ。', genre: 'スペイン料理、バル、イタリアン', cuisine: 7, style: 8, calmness: 6, cospa: 7, review: 7, total: 35, booking: '◯', url: 'https://tabelog.com/tokyo/A1301/A130102/13168006/', area: '有楽町' },
+            { rank: 13, name: '綴 (TSUZURU) 日比谷', desc: '大人の隠れ家ダイニング。和洋折衷の創作料理と豊富なドリンク。完全個室あり。', genre: 'ダイニングバー、居酒屋、イタリアン', cuisine: 7, style: 7, calmness: 8, cospa: 6, review: 7, total: 35, booking: '◯', url: 'https://tabelog.com/tokyo/A1301/A130102/13168007/', area: '有楽町' },
+            { rank: 14, name: 'GOHAN 新橋店', desc: '和洋折衷の創作料理が魅力。盛り付けも美しい。広々とした落ち着いた空間。', genre: '創作和食、ダイニングバー', cuisine: 7, style: 7, calmness: 6, cospa: 7, review: 7, total: 34, booking: '◯', url: 'https://tabelog.com/tokyo/A1301/A130103/13091482/', area: '新橋' },
+            { rank: 15, name: '完全個室居酒屋 九州蔵 新橋店', desc: '九州各地の厳選食材を使った創作料理。全席個室でプライベートな空間。', genre: '九州料理、居酒屋、完全個室', cuisine: 7, style: 6, calmness: 8, cospa: 7, review: 6, total: 34, booking: '◯', url: 'https://tabelog.com/tokyo/A1301/A130103/13291208/', area: '新橋' },
+            { rank: 16, name: 'STAND BY Mi', desc: '和風創作料理と豊富なドリンク。カジュアルながら落ち着いた個室が充実。', genre: '創作和食、居酒屋', cuisine: 6, style: 7, calmness: 7, cospa: 7, review: 7, total: 34, booking: '◯', url: 'https://tabelog.com/tokyo/A1301/A130103/13250081/', area: '新橋' },
+            { rank: 17, name: '銀座ライオンGINZA PLACE店', desc: '銀座の中心で老舗ビアホール。広々とした空間でカジュアルに楽しめる。個室あり。', genre: 'ビアホール、洋食', cuisine: 7, style: 7, calmness: 6, cospa: 7, review: 7, total: 34, booking: '◯', url: 'https://tabelog.com/tokyo/A1301/A130101/13193630/', area: '銀座' },
+            { rank: 18, name: '麹蔵 銀座店', desc: '鹿児島・奄美の郷土料理と本格焼酎が楽しめる。落ち着いた個室でゆっくり過ごせる。', genre: '居酒屋、郷土料理、日本料理', cuisine: 7, style: 6, calmness: 7, cospa: 7, review: 7, total: 34, booking: '◯', url: 'https://tabelog.com/tokyo/A1301/A130101/13002147/', area: '銀座' },
+            { rank: 19, name: '銀座 燈庵', desc: '旬の食材を使った創作和食。落ち着いた雰囲気で、個室も充実。接待にも利用可能。', genre: '創作和食、居酒屋', cuisine: 7, style: 7, calmness: 8, cospa: 6, review: 6, total: 34, booking: '◯', url: 'https://tabelog.com/tokyo/A1301/A130101/13109316/', area: '銀座' },
+            { rank: 20, name: '龍馬商店', desc: '四万十鶏など高知の食材を使った居酒屋。藁焼きメニューも。アットホームな個室。', genre: '居酒屋、高知料理', cuisine: 7, style: 6, calmness: 6, cospa: 7, review: 7, total: 33, booking: '◯', url: 'https://tabelog.com/tokyo/A1301/A130103/13302321/', area: '新橋' },
+            { rank: 21, name: 'わらやき道場 別邸 新橋駅前店', desc: '高知名物藁焼き料理が楽しめる。鰹の藁焼きをはじめ、香ばしい藁焼き料理を堪能。', genre: '居酒屋、藁焼き、郷土料理', cuisine: 7, style: 6, calmness: 6, cospa: 7, review: 7, total: 33, booking: '◯', url: 'https://tabelog.com/tokyo/A1301/A130103/13297202/', area: '新橋' },
+            { rank: 22, name: '肉と魚の肉バル 肉食べ放題 個室居酒屋 にくたらし 新橋本店', desc: '肉料理と鮮魚料理の両方を楽しめる肉バル。肉食べ放題プランあり。カジュアル。', genre: '肉バル、居酒屋、肉料理、魚料理', cuisine: 6, style: 7, calmness: 6, cospa: 8, review: 6, total: 33, booking: '◯', url: 'https://tabelog.com/tokyo/A1301/A130103/13265546/', area: '新橋' },
+            { rank: 23, name: '隠れ家個室ダイニング 忍家 新橋駅前店', desc: '季節の創作料理と豊富なドリンク。和モダンな個室でプライベートな時間を。', genre: '創作料理、居酒屋', cuisine: 6, style: 7, calmness: 7, cospa: 7, review: 6, total: 33, booking: '◯', url: 'https://tabelog.com/tokyo/A1301/A130103/13280879/', area: '新橋' },
+            { rank: 24, name: 'デザイナーズ和ダイニング 禅 新橋店', desc: '洗練された和モダン空間で創作和食を。おしゃれで大人の落ち着いた飲み会に。', genre: '創作和食、ダイニング', cuisine: 7, style: 8, calmness: 7, cospa: 6, review: 5, total: 33, booking: '◯', url: 'https://tabelog.com/tokyo/A1301/A130103/13109315/', area: '新橋' },
+            { rank: 25, name: '個室Dining 絆 新橋店', desc: '和の趣を感じる落ち着いた空間。様々なタイプの個室と充実の飲み放題コース。', genre: '創作和食、居酒屋', cuisine: 6, style: 6, calmness: 7, cospa: 7, review: 6, total: 32, booking: '◯', url: 'https://tabelog.com/tokyo/A1301/A130103/13292194/', area: '新橋' },
+            { rank: 26, name: '個室Dining 縁 新橋店', desc: '厳選された食材を使った創作料理と、豊富なドリンク。プライベート感ある個室。', genre: '創作料理、ダイニング', cuisine: 6, style: 6, calmness: 7, cospa: 7, review: 6, total: 32, booking: '◯', url: 'https://tabelog.com/tokyo/A1301/A130103/13292195/', area: '新橋' },
+            { rank: 27, name: '創作和食と個室 桜坂 新橋店', desc: '季節の創作和食と、おしゃれな空間が魅力。デートや女子会にもおすすめ。', genre: '創作和食、居酒屋', cuisine: 6, style: 7, calmness: 6, cospa: 7, review: 6, total: 32, booking: '◯', url: 'https://tabelog.com/tokyo/A1301/A130103/13291207/', area: '新橋' },
+            { rank: 28, name: '個室居酒屋 くいもの屋わん 新橋店', desc: '全国展開の人気チェーン。和風の落ち着いた個室が豊富で幅広い層に利用される。', genre: '居酒屋', cuisine: 6, style: 6, calmness: 6, cospa: 7, review: 6, total: 31, booking: '◯', url: 'https://tabelog.com/tokyo/A1301/A130103/13002146/', area: '新橋' },
+            { rank: 29, name: 'のぼせもん', desc: '福岡・博多の郷土料理が楽しめる。もつ鍋や馬刺しなど。個室完備。', genre: '九州料理、もつ鍋、郷土料理', cuisine: 7, style: 6, calmness: 6, cospa: 6, review: 6, total: 31, booking: '◯', url: 'https://tabelog.com/tokyo/A1301/A130101/13117806/', area: '銀座' },
+            { rank: 30, name: '新橋 個室居酒屋 柚庵 新橋店', desc: '産地直送の旬の食材を使った創作和食。和の趣ある落ち着いた個室が充実。', genre: '創作和食、居酒屋', cuisine: 6, style: 6, calmness: 6, cospa: 6, review: 6, total: 30, booking: '◯', url: 'https://tabelog.com/tokyo/A1301/A130103/13166885/', area: '新橋' },
+        ];
+        
+        const areaFilter = document.getElementById('area-filter');
+        const genreFilter = document.getElementById('genre-filter');
+        const sortBy = document.getElementById('sort-by');
+        const restaurantList = document.getElementById('restaurant-list');
+        const radarChartCtx = document.getElementById('restaurant-radar-chart').getContext('2d');
+        let radarChart;
+
+        const scoreMapping = {
+            total: '合計点',
+            cuisine: '料理がおいしい',
+            style: 'おしゃれ',
+            calmness: '落ち着き',
+            cospa: 'コスパ',
+            review: '口コミ評価'
+        };
+        
+        const colors = [
+            'rgba(59, 130, 246, 0.7)',  // blue-500
+            'rgba(239, 68, 68, 0.7)',   // red-500
+            'rgba(16, 185, 129, 0.7)',  // emerald-500
+            'rgba(245, 158, 11, 0.7)',  // amber-500
+            'rgba(139, 92, 246, 0.7)'  // violet-500
+        ];
+
+        function populateGenreFilter() {
+            const genres = new Set();
+            restaurantData.forEach(r => {
+                r.genre.split('、').forEach(g => genres.add(g.trim()));
+            });
+            
+            [...genres].sort().forEach(genre => {
+                const option = document.createElement('option');
+                option.value = genre;
+                option.textContent = genre;
+                genreFilter.appendChild(option);
+            });
+        }
+
+        function renderRestaurants() {
+            const area = areaFilter.value;
+            const genre = genreFilter.value;
+            const sortKey = sortBy.value;
+
+            const filteredData = restaurantData
+                .filter(r => (area === 'all' || r.area === area))
+                .filter(r => (genre === 'all' || r.genre.includes(genre)));
+
+            filteredData.sort((a, b) => {
+                if(sortKey === 'total') {
+                     return b[sortKey] - a[sortKey] || a.name.localeCompare(b.name); // 名前でソート
+                }
+                return b[sortKey] - a[sortKey] || b.total - a.total || a.name.localeCompare(b.name); // 合計点と名前でソート
+            });
+
+            restaurantList.innerHTML = '';
+            if (filteredData.length === 0) {
+                 restaurantList.innerHTML = `<p class="col-span-full text-center text-slate-500">条件に合うお店が見つかりませんでした。</p>`;
+            } else {
+                filteredData.forEach(r => {
+                    const card = document.createElement('div');
+                    card.className = 'bg-white rounded-xl shadow-lg p-6 flex flex-col transition-all duration-300 hover:shadow-2xl hover:-translate-y-1';
+                    
+                    card.innerHTML = `
+                        <div class="flex-grow">
+                            <div class="flex justify-between items-start">
+                                <span class="tag bg-sky-100 text-sky-800">${r.area}</span>
+                                <span class="font-bold text-2xl text-slate-700">${r.total}点</span>
+                            </div>
+                            <h3 class="text-xl font-bold mt-4 mb-2 text-slate-900">${r.name}</h3>
+                            <p class="text-sm text-slate-500 mb-4">${r.desc}</p>
+                            <p class="text-xs text-slate-500 mb-4">ジャンル: ${r.genre}</p>
+
+                            <div class="grid grid-cols-3 gap-2 text-center text-sm mb-4">
+                                <div><p class="text-xs text-slate-500">料理</p><p class="font-semibold">${r.cuisine}</p></div>
+                                <div><p class="text-xs text-slate-500">おしゃれ</p><p class="font-semibold">${r.style}</p></div>
+                                <div><p class="text-xs text-slate-500">落ち着き</p><p class="font-semibold">${r.calmness}</p></div>
+                                <div><p class="text-xs text-slate-500">コスパ</p><p class="font-semibold">${r.cospa}</p></div>
+                                <div><p class="text-xs text-slate-500">口コミ</p><p class="font-semibold">${r.review}</p></div>
+                            </div>
+                            <div class="text-center text-sm mt-2">
+                                <p class="text-xs text-slate-500">オンライン予約</p>
+                                <p class="font-semibold text-lg ${r.booking === '◯' ? 'text-green-600' : 'text-red-600'}">${r.booking}</p>
+                            </div>
+                        </div>
+                        <a href="${r.url}" target="_blank" rel="noopener noreferrer" class="block w-full text-center bg-sky-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-sky-700 transition-colors mt-4">
+                            食べログで見る
+                        </a>
+                    `;
+                    restaurantList.appendChild(card);
+                });
+            }
+
+            renderRadarChart(filteredData);
+        }
+
+        function renderRadarChart(data) {
+            if (radarChart) {
+                radarChart.destroy();
+            }
+
+            const chartData = data.slice(0, 5);
+            
+            const datasets = chartData.map((r, i) => ({
+                label: r.name,
+                data: [r.cuisine, r.style, r.calmness, r.cospa, r.review],
+                backgroundColor: colors[i].replace('0.7', '0.2'),
+                borderColor: colors[i],
+                pointBackgroundColor: colors[i],
+                pointBorderColor: '#fff',
+                pointHoverBackgroundColor: '#fff',
+                pointHoverBorderColor: colors[i]
+            }));
+
+            radarChart = new Chart(radarChartCtx, {
+                type: 'radar',
+                data: {
+                    labels: ['料理', 'おしゃれ', '落ち着き', 'コスパ', '口コミ'],
+                    datasets: datasets
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    elements: {
+                        line: {
+                            borderWidth: 2
+                        }
+                    },
+                    scales: {
+                        r: {
+                            angleLines: {
+                                display: false
+                            },
+                            suggestedMin: 0,
+                            suggestedMax: 10,
+                             pointLabels: {
+                                font: {
+                                    size: 12
+                                }
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                             labels: {
+                                font: {
+                                    size: 10
+                                },
+                                boxWidth: 20
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) {
+                                        label += ': ';
+                                    }
+                                    if (context.parsed.r !== null) {
+                                        label += context.parsed.r;
+                                    }
+                                    return label;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            populateGenreFilter();
+            renderRestaurants();
+            
+            areaFilter.addEventListener('change', renderRestaurants);
+            genreFilter.addEventListener('change', renderRestaurants);
+            sortBy.addEventListener('change', renderRestaurants);
+        });
+    </script>
+
+</body>
+</html>
